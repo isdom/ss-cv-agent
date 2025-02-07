@@ -12,7 +12,8 @@ import javax.annotation.PreDestroy;
 public class AgentMain {
 
     @PostConstruct
-    public void start() {
+    public void start() throws InterruptedException {
+        log.info("CosyVoice-Agent: Init");
     }
 
     @PreDestroy

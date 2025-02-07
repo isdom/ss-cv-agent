@@ -13,8 +13,13 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter'
+    // for RequestMapping etc
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'com.alibaba.boot:nacos-config-spring-boot-starter:0.2.12'
     implementation 'org.springframework.cloud:spring-cloud-dependencies:2021.0.8'
+    implementation 'com.alibaba.cloud:spring-cloud-alibaba-dependencies:2021.0.5.0'
+
+    implementation 'com.alibaba.cloud:spring-cloud-starter-alibaba-nacos-discovery:2021.0.5.0'
 
     compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.20'
     annotationProcessor group: 'org.projectlombok', name: 'lombok', version: '1.18.20'
@@ -29,6 +34,11 @@ dependencies {
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+bootJar {
+//    This is overridden by the mainClassName in springBoot{} and added here for reference purposes.
+    mainClass = 'com.yulore.NacosConfigApplication'
 }
 
 test {
