@@ -7,7 +7,6 @@ import com.yulore.bst.OSSStreamTask;
 import com.yulore.util.ByteArrayListInputStream;
 import com.yulore.util.ExceptionUtil;
 import com.yulore.util.WaveUtil;
-import lombok.Builder;
 import lombok.Data;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +34,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Controller
 @Slf4j
@@ -58,10 +55,6 @@ public class ApiController {
     @RequestMapping(value = "/zero_shot", method = RequestMethod.POST)
     public void zero_shot(@RequestBody ZeroShotRequest request, final HttpServletResponse response) throws InterruptedException {
         log.info("API call /zero_shot with OSS: {}", _ossClient);
-
-        // final CountDownLatch cdl = new CountDownLatch(1);
-
-        // final AtomicReference<byte[]> wavBytesRef = new AtomicReference<>(null);
 
         final BuildStreamTask bst = new OSSStreamTask(request.getPrompt_wav(), _ossClient, false);
         final List<byte[]> byteList = new ArrayList<>();
@@ -92,15 +85,6 @@ public class ApiController {
             } catch (IOException ignored1) {
             }
         });
-
-//        cdl.await();
-//        if (wavBytesRef.get() != null) {
-//            log.info("zero_shot: output wav size:{}", wavBytesRef.get().length);
-//            return wavBytesRef.get();
-//        } else {
-//            log.info("zero_shot: output wav failed");
-//            return "failed";
-//        }
     }
 
     private byte[] callCosy2ZeroShot(final String ttsText, final String promptText, final byte[] wavBytes) {
