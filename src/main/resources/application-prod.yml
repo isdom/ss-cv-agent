@@ -1,0 +1,12 @@
+# application-prod.yml
+
+nacos:
+  config:
+    endpoint: ${NACOS_ENDPOINT}
+    namespace: ${NACOS_NAMESPACE}
+
+spring:
+  main:
+    web-application-type: none
+  application:
+    name: cv-agent
