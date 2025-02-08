@@ -97,8 +97,10 @@
         <maxThrowable>500</maxThrowable>
     </appender>
 
-    <logger name="org.apache.http" level="WARN"/>
+    <logger name="io.netty" level="INFO"/>
+    <logger name="org.redisson" level="INFO"/>
     <logger name="com.aliyun.openservices" level="WARN"/>
+    <logger name="org.apache.http" level="WARN"/>
 
     <logger name="com.yulore.test" level="info" additivity="false">
         <appender-ref ref="CONSOLE-TEST"/>
