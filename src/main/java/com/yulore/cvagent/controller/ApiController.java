@@ -4,7 +4,6 @@ import com.yulore.cvagent.service.CosyVoiceService;
 import lombok.Data;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Base64;
 
 @Controller
 @Slf4j
@@ -29,10 +27,9 @@ public class ApiController {
     @RequestMapping(value = "/zero_shot", method = RequestMethod.POST)
     public void zero_shot(@RequestBody ZeroShotRequest request, final HttpServletResponse response) throws IOException {
         log.info("zero_shot: ttsText:{} / promptText:{} / promptWav:{}", request.tts_text, request.prompt_text, request.prompt_wav);
-        final String wavBytesBase64 = cosyService.inferenceZeroShot(request.tts_text, request.prompt_text, request.prompt_wav);
+        final byte[] wavBytes = cosyService.inferenceZeroShot(request.tts_text, request.prompt_text, request.prompt_wav);
 
-        if (!Strings.isEmpty(wavBytesBase64)) {
-            final byte[] wavBytes = Base64.getDecoder().decode(wavBytesBase64);
+        if (wavBytes != null) {
             log.info("zero_shot: output wav size:{}", wavBytes.length);
 
             // 设置响应头

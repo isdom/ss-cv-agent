@@ -20,12 +20,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,7 +39,19 @@ public class CosyVoiceServiceImpl implements CosyVoiceService {
     }
 
     @Override
-    public String inferenceZeroShot(final String ttsText, final String promptText, final String promptWav) {
+    public String inferenceZeroShotAndSave(final String ttsText, final String promptText, final String promptWav,
+                                           final String bucket, final String saveTo) {
+        final byte[] wavBytes = inferenceZeroShot(ttsText, promptText, promptWav);
+        if (wavBytes == null) {
+            return "failed";
+        } else {
+            _ossClient.putObject(bucket, saveTo, new ByteArrayInputStream(wavBytes));
+            return "OK";
+        }
+    }
+
+    @Override
+    public byte[] inferenceZeroShot(final String ttsText, final String promptText, final String promptWav) {
         final byte[] promptWavBytes = loadFromOss(promptWav);
         try(final CloseableHttpClient httpClient = HttpClients.createDefault()) {
             final HttpPost httpPost = new HttpPost(_cosy2_url);
@@ -65,10 +77,9 @@ public class CosyVoiceServiceImpl implements CosyVoiceService {
                 if (responseEntity != null) {
                     final byte[] pcm = EntityUtils.toByteArray(responseEntity);
                     log.info("callCosy2ZeroShot: Response {}/audioData.size: {}", response, pcm.length);
-                    final byte[] fullWav = Bytes.concat(
+                    return Bytes.concat(
                             WaveUtil.genWaveHeader(16000, 1),
                             WaveUtil.resamplePCM(pcm, 24000, 16000));
-                    return Base64.getEncoder().encodeToString(fullWav);
                 }
             } else {
                 log.warn("Failed to get response. Status code: {}", response.getStatusLine().getStatusCode());
@@ -76,7 +87,7 @@ public class CosyVoiceServiceImpl implements CosyVoiceService {
         } catch (IOException ex) {
             log.warn("callCosy2ZeroShot: failed, detail: {}", ExceptionUtil.exception2detail(ex));
         }
-        return "";
+        return null;
     }
 
     private byte[] loadFromOss(final String objectWithBucket) {

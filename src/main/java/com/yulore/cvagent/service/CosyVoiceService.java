@@ -1,5 +1,7 @@
 package com.yulore.cvagent.service;
 
 public interface CosyVoiceService {
-    String inferenceZeroShot(final String ttsText, final String promptText, final String promptWav);
+    byte[] inferenceZeroShot(final String ttsText, final String promptText, final String promptWav);
+    String inferenceZeroShotAndSave(final String ttsText, final String promptText, final String promptWav,
+                                      final String bucket, final String saveTo);
 }
