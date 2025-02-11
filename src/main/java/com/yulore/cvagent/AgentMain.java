@@ -28,6 +28,12 @@ public class AgentMain {
 
         final RRemoteService remoteService = redisson.getRemoteService(_service_zero_shot);
         remoteService.register(CosyVoiceService.class, cosyVoiceService);
+        log.info("CosyVoice-Agent: Init: remoteService.getFreeWorkers() for CosyVoiceService: {}",
+                remoteService.getFreeWorkers(CosyVoiceService.class));
+        cosyVoiceService.setOnInferenceZeroShot(() -> {
+            log.info("remoteService.getFreeWorkers() for CosyVoiceService: {}",
+                    remoteService.getFreeWorkers(CosyVoiceService.class));
+        });
     }
 
     @PreDestroy

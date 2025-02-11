@@ -38,12 +38,21 @@ public class CosyVoiceServiceImpl implements CosyVoiceService {
         this._ossClient = ossClient;
     }
 
+    private Runnable onInferenceZeroShot = null;
+
+    public void setOnInferenceZeroShot(final Runnable runnable) {
+        onInferenceZeroShot = runnable;
+    }
+
     @Override
     public String inferenceZeroShotAndSave(final String ttsText,
                                            final String promptText,
                                            final String promptWav,
                                            final String bucket,
                                            final String saveTo) {
+        if (null != onInferenceZeroShot) {
+            onInferenceZeroShot.run();
+        }
         log.info("inferenceZeroShotAndSave: \ntext:{}\nprompt:{}-{}\nsaveTo:{bucket={}}{}", ttsText, promptText, promptWav, bucket, saveTo);
         final byte[] wavBytes = inferenceZeroShot(ttsText, promptText, promptWav);
         if (wavBytes == null) {
