@@ -39,13 +39,20 @@ public class CosyVoiceServiceImpl implements CosyVoiceService {
     }
 
     @Override
-    public String inferenceZeroShotAndSave(final String ttsText, final String promptText, final String promptWav,
-                                           final String bucket, final String saveTo) {
+    public String inferenceZeroShotAndSave(final String ttsText,
+                                           final String promptText,
+                                           final String promptWav,
+                                           final String bucket,
+                                           final String saveTo) {
+        log.info("inferenceZeroShotAndSave: \ntext:{}\nprompt:{}-{}\nsaveTo:{bucket={}}{}", ttsText, promptText, promptWav, bucket, saveTo);
         final byte[] wavBytes = inferenceZeroShot(ttsText, promptText, promptWav);
         if (wavBytes == null) {
+            log.info("inferenceZeroShotAndSave: inferenceZeroShot failed");
             return "failed";
         } else {
+            log.info("inferenceZeroShotAndSave: inferenceZeroShot with output size: {}", wavBytes.length);
             _ossClient.putObject(bucket, saveTo, new ByteArrayInputStream(wavBytes));
+            log.info("inferenceZeroShotAndSave: saveTo {bucket={}}{}", bucket, saveTo);
             return "OK";
         }
     }
