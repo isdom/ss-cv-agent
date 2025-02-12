@@ -3,8 +3,7 @@ package com.yulore.cvagent;
 
 import com.yulore.api.CVMasterService;
 import com.yulore.api.CosyVoiceService;
-import com.yulore.cvagent.service.LocalCosyVoiceService;
-import io.netty.util.NettyRuntime;
+import com.yulore.cvagent.service.LocalCosyVoiceServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 
 import org.redisson.api.RRemoteService;
@@ -24,8 +23,9 @@ public class AgentMain {
     public void start() {
         log.info("CosyVoice-Agent: started with redisson: {}", redisson.getConfig().useSingleServer().getDatabase());
 
-        redisson.getRemoteService(_service_cosyvoice)
-                .register(CosyVoiceService.class, localCosyVoiceService);
+        final RRemoteService remoteService =  redisson.getRemoteService(_service_cosyvoice);
+        // redisson.getRemoteService(_service_cosyvoice)
+        remoteService.register(CosyVoiceService.class, localCosyVoiceService);
 
         final CVMasterService masterService =  redisson.getRemoteService(_service_master)
                 .get(CVMasterService.class, RemoteInvocationOptions.defaults().noAck().noResult());
@@ -36,6 +36,8 @@ public class AgentMain {
                 // worker back to idle
                 () -> masterService.updateCVAgentStatus(agentId, 1));
         masterService.updateCVAgentStatus(agentId, 1);
+
+        log.info("remoteService.getFreeWorkers() for CosyVoiceService: {}", remoteService.getFreeWorkers(CosyVoiceService.class));
     }
 
     @PreDestroy
@@ -56,7 +58,7 @@ public class AgentMain {
     private RedissonClient redisson;
 
     @Autowired
-    private LocalCosyVoiceService localCosyVoiceService;
+    private LocalCosyVoiceServiceImpl localCosyVoiceService;
 
     private final String agentId = UUID.randomUUID().toString();
 }

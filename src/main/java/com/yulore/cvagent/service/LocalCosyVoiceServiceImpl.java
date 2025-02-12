@@ -2,6 +2,7 @@ package com.yulore.cvagent.service;
 
 import com.aliyun.oss.OSS;
 import com.google.common.primitives.Bytes;
+import com.yulore.api.CosyVoiceService;
 import com.yulore.bst.BuildStreamTask;
 import com.yulore.bst.OSSStreamTask;
 import com.yulore.util.ByteArrayListInputStream;
@@ -32,7 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
-public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
+public class LocalCosyVoiceServiceImpl implements CosyVoiceService {
     @Autowired
     public LocalCosyVoiceServiceImpl(final OSS ossClient) {
         this._ossClient = ossClient;
@@ -75,7 +76,6 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
         }
     }
 
-    @Override
     public byte[] inferenceZeroShot(final String ttsText, final String promptText, final String promptWav) {
         final byte[] promptWavBytes = loadFromOss(promptWav);
         try(final CloseableHttpClient httpClient = HttpClients.createDefault()) {
