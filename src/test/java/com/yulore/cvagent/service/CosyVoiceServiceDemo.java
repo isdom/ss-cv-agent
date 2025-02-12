@@ -1,5 +1,6 @@
 package com.yulore.cvagent.service;
 
+import com.yulore.api.CosyVoiceService;
 import org.redisson.Redisson;
 import org.redisson.api.RRemoteService;
 import org.redisson.api.RedissonClient;
@@ -18,10 +19,11 @@ public class CosyVoiceServiceDemo {
         final RedissonClient redisson = Redisson.create(config);
 
         final RRemoteService remoteService = redisson.getRemoteService("service");
-        final LocalCosyVoiceService localCosyVoiceService = remoteService.get(LocalCosyVoiceService.class,
+        final CosyVoiceService cosyVoiceService = remoteService.get(CosyVoiceService.class,
                 RemoteInvocationOptions.defaults().noAck().expectResultWithin(30 * 1000L));
 
-        final String result = localCosyVoiceService.inferenceZeroShotAndSave("您好吧？",
+        final String result = cosyVoiceService.inferenceZeroShotAndSave(
+                "您好吧？",
                 "参考音频",
                 "ref.wav",
                 "bucket",
