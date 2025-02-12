@@ -118,6 +118,8 @@
             <appender-ref ref="FILE"/>
             <appender-ref ref="sls"/>
         </root>
+        <logger name="io.netty" level="INFO"/>
+        <logger name="org.redisson" level="INFO"/>
     </springProfile>
 
 </configuration>

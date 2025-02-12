@@ -28,7 +28,7 @@ public class AgentMain {
                 .register(CosyVoiceService.class, localCosyVoiceService);
 
         final CVMasterService masterService =  redisson.getRemoteService(_service_master)
-                .get(CVMasterService.class);
+                .get(CVMasterService.class, RemoteInvocationOptions.defaults().noAck().noResult());
 
         localCosyVoiceService.setInferenceZeroShotHook(
                 // start to work
