@@ -18,10 +18,10 @@ public class CosyVoiceServiceDemo {
         final RedissonClient redisson = Redisson.create(config);
 
         final RRemoteService remoteService = redisson.getRemoteService("service");
-        final CosyVoiceService cosyVoiceService = remoteService.get(CosyVoiceService.class,
+        final LocalCosyVoiceService localCosyVoiceService = remoteService.get(LocalCosyVoiceService.class,
                 RemoteInvocationOptions.defaults().noAck().expectResultWithin(30 * 1000L));
 
-        final String result = cosyVoiceService.inferenceZeroShotAndSave("您好吧？",
+        final String result = localCosyVoiceService.inferenceZeroShotAndSave("您好吧？",
                 "参考音频",
                 "ref.wav",
                 "bucket",

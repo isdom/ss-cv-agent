@@ -1,6 +1,6 @@
 package com.yulore.cvagent.controller;
 
-import com.yulore.cvagent.service.CosyVoiceService;
+import com.yulore.cvagent.service.LocalCosyVoiceService;
 import lombok.Data;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -48,5 +48,5 @@ public class ApiController {
     }
 
     @Autowired
-    CosyVoiceService cosyService;
+    LocalCosyVoiceService cosyService;
 }

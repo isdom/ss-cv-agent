@@ -32,16 +32,18 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
-public class CosyVoiceServiceImpl implements CosyVoiceService {
+public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
     @Autowired
-    public CosyVoiceServiceImpl(final OSS ossClient) {
+    public LocalCosyVoiceServiceImpl(final OSS ossClient) {
         this._ossClient = ossClient;
     }
 
-    private Runnable onInferenceZeroShot = null;
+    private Runnable _onStart = null;
+    private Runnable _onEnd = null;
 
-    public void setOnInferenceZeroShot(final Runnable runnable) {
-        onInferenceZeroShot = runnable;
+    public void setInferenceZeroShotHook(final Runnable onStart, final Runnable onEnd) {
+        _onStart = onStart;
+        _onEnd = onEnd;
     }
 
     @Override
@@ -50,19 +52,26 @@ public class CosyVoiceServiceImpl implements CosyVoiceService {
                                            final String promptWav,
                                            final String bucket,
                                            final String saveTo) {
-        if (null != onInferenceZeroShot) {
-            onInferenceZeroShot.run();
+        if (null != _onStart) {
+            _onStart.run();
         }
-        log.info("inferenceZeroShotAndSave: \ntext:{}\nprompt:{}-{}\nsaveTo:{bucket={}}{}", ttsText, promptText, promptWav, bucket, saveTo);
-        final byte[] wavBytes = inferenceZeroShot(ttsText, promptText, promptWav);
-        if (wavBytes == null) {
-            log.info("inferenceZeroShotAndSave: inferenceZeroShot failed");
-            return "failed";
-        } else {
-            log.info("inferenceZeroShotAndSave: inferenceZeroShot with output size: {}", wavBytes.length);
-            _ossClient.putObject(bucket, saveTo, new ByteArrayInputStream(wavBytes));
-            log.info("inferenceZeroShotAndSave: saveTo {bucket={}}{}", bucket, saveTo);
-            return "OK";
+
+        try {
+            log.info("inferenceZeroShotAndSave: \ntext:{}\nprompt:{}-{}\nsaveTo:{bucket={}}{}", ttsText, promptText, promptWav, bucket, saveTo);
+            final byte[] wavBytes = inferenceZeroShot(ttsText, promptText, promptWav);
+            if (wavBytes == null) {
+                log.info("inferenceZeroShotAndSave: inferenceZeroShot failed");
+                return "failed";
+            } else {
+                log.info("inferenceZeroShotAndSave: inferenceZeroShot with output size: {}", wavBytes.length);
+                _ossClient.putObject(bucket, saveTo, new ByteArrayInputStream(wavBytes));
+                log.info("inferenceZeroShotAndSave: saveTo {bucket={}}{}", bucket, saveTo);
+                return "OK";
+            }
+        } finally {
+            if (null != _onEnd) {
+                _onEnd.run();
+            }
         }
     }
 
