@@ -48,5 +48,5 @@ public class ApiController {
     }
 
     @Autowired
-    LocalCosyVoiceService cosyService;
+    private LocalCosyVoiceService cosyService;
 }
