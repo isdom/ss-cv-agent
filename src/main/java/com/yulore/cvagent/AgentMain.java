@@ -4,7 +4,7 @@ package com.yulore.cvagent;
 import com.yulore.api.CVMasterService;
 import com.yulore.api.CosyVoiceService;
 import com.yulore.cvagent.service.LocalCosyVoiceService;
-import com.yulore.cvagent.service.LocalCosyVoiceServiceImpl;
+import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.extern.slf4j.Slf4j;
 
 import org.redisson.api.RRemoteService;
@@ -16,6 +16,9 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -24,9 +27,12 @@ public class AgentMain {
     public void start() {
         log.info("CosyVoice-Agent: started with redisson: {}", redisson.getConfig().useSingleServer().getDatabase());
 
-        redisson.getRemoteService(_service_cosyvoice).register(CosyVoiceService.class, localCosyVoiceService);
+        scheduler = Executors.newScheduledThreadPool(1, new DefaultThreadFactory("reportExecutor"));
 
-        final CVMasterService masterService =  redisson.getRemoteService(_service_master)
+        final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
+        rs.register(CosyVoiceService.class, localCosyVoiceService);
+
+        final CVMasterService masterService = redisson.getRemoteService(_service_master)
                 .get(CVMasterService.class, RemoteInvocationOptions.defaults().noAck().noResult());
 
         localCosyVoiceService.setInferenceZeroShotHook(
@@ -34,11 +40,20 @@ public class AgentMain {
                 () -> masterService.updateCVAgentStatus(agentId, 0),
                 // worker back to idle
                 () -> masterService.updateCVAgentStatus(agentId, 1));
-        masterService.updateCVAgentStatus(agentId, 1);
+        reportAndScheduleNext(()->masterService.updateCVAgentStatus(agentId, rs.getFreeWorkers(CosyVoiceService.class)));
+    }
+
+    private void reportAndScheduleNext(final Runnable doReport) {
+        try {
+            doReport.run();
+        } finally {
+            scheduler.schedule(()->reportAndScheduleNext(doReport), _report_check_interval, TimeUnit.MILLISECONDS);
+        }
     }
 
     @PreDestroy
     public void stop() {
+        scheduler.shutdownNow();
         final RRemoteService remoteService = redisson.getRemoteService(_service_cosyvoice);
         remoteService.deregister(CosyVoiceService.class);
 
@@ -56,6 +71,11 @@ public class AgentMain {
 
     @Autowired
     private LocalCosyVoiceService localCosyVoiceService;
+
+    @Value("${agent.report_interval:10000}") // default: 10 * 1000ms
+    private long _report_check_interval;
+
+    private ScheduledExecutorService scheduler;
 
     private final String agentId = UUID.randomUUID().toString();
 }
