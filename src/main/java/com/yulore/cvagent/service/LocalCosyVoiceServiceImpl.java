@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
-public class LocalCosyVoiceServiceImpl implements CosyVoiceService {
+public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
     @Autowired
     public LocalCosyVoiceServiceImpl(final OSS ossClient) {
         this._ossClient = ossClient;
@@ -42,6 +42,7 @@ public class LocalCosyVoiceServiceImpl implements CosyVoiceService {
     private Runnable _onStart = null;
     private Runnable _onEnd = null;
 
+    @Override
     public void setInferenceZeroShotHook(final Runnable onStart, final Runnable onEnd) {
         _onStart = onStart;
         _onEnd = onEnd;
@@ -76,6 +77,7 @@ public class LocalCosyVoiceServiceImpl implements CosyVoiceService {
         }
     }
 
+    @Override
     public byte[] inferenceZeroShot(final String ttsText, final String promptText, final String promptWav) {
         final byte[] promptWavBytes = loadFromOss(promptWav);
         try(final CloseableHttpClient httpClient = HttpClients.createDefault()) {
