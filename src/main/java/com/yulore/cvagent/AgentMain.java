@@ -4,6 +4,7 @@ package com.yulore.cvagent;
 import com.yulore.api.CVMasterService;
 import com.yulore.api.CosyVoiceService;
 import com.yulore.cvagent.service.LocalCosyVoiceService;
+import com.yulore.util.ExceptionUtil;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 @Slf4j
 @Component
@@ -29,14 +31,24 @@ public class AgentMain {
 
         scheduler = Executors.newScheduledThreadPool(1, new DefaultThreadFactory("reportExecutor"));
 
-        final long beginTimestamp = System.currentTimeMillis();
-        while (!localCosyVoiceService.isCosyVoiceOnline()) {
-            log.warn("local CosyVoice !NOT! Online, wait for re-try");
-            Thread.sleep(1000 * 10);
-        }
-        log.info("agent({}): wait for CosyVoice Service Online cost: {} s",
-                agentId, (System.currentTimeMillis() - beginTimestamp) / 1000.0f);
+        checkAndScheduleNext((tm) -> {
+            if (!localCosyVoiceService.isCosyVoiceOnline()) {
+                log.warn("agent({}) local_cosyvoice_not_online, wait for re-try", agentId);
+                // continue to check CosyVoice status
+                return true;
+            } else {
+                log.info("agent({}): wait_for_local_cosyvoice_online_cost: {} s",
+                        agentId, (System.currentTimeMillis() - tm) / 1000.0f);
 
+                registerCosyVoiceServiceAndStartUpdateAgentStatus();
+                // stop checking CosyVoice status for service is online
+                return false;
+            }
+        }, System.currentTimeMillis());
+    }
+
+    private void registerCosyVoiceServiceAndStartUpdateAgentStatus() {
+        // CosyVoice is online, stop check and begin to register RemoteService
         final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
         rs.register(CosyVoiceService.class, localCosyVoiceService);
 
@@ -48,14 +60,22 @@ public class AgentMain {
                 () -> masterService.updateCVAgentStatus(agentId, 0),
                 // worker back to idle
                 () -> masterService.updateCVAgentStatus(agentId, 1));
-        reportAndScheduleNext(()->masterService.updateCVAgentStatus(agentId, rs.getFreeWorkers(CosyVoiceService.class)));
+
+        checkAndScheduleNext((startedTimestamp)-> {
+            masterService.updateCVAgentStatus(agentId, rs.getFreeWorkers(CosyVoiceService.class));
+            return true;
+        }, System.currentTimeMillis());
     }
 
-    private void reportAndScheduleNext(final Runnable doReport) {
+    private void checkAndScheduleNext(final Function<Long, Boolean> doCheck, final Long timestamp) {
         try {
-            doReport.run();
-        } finally {
-            scheduler.schedule(()->reportAndScheduleNext(doReport), _report_check_interval, TimeUnit.MILLISECONDS);
+            if (doCheck.apply(timestamp)) {
+                scheduler.schedule(()->checkAndScheduleNext(doCheck, timestamp), _check_interval, TimeUnit.MILLISECONDS);
+            }
+        } catch (final Exception ex) {
+            log.warn("agent({}) checkAndScheduleNext exception: {}", agentId, ExceptionUtil.exception2detail(ex));
+        }
+        finally {
         }
     }
 
@@ -80,8 +100,8 @@ public class AgentMain {
     @Autowired
     private LocalCosyVoiceService localCosyVoiceService;
 
-    @Value("${agent.report_interval:10000}") // default: 10 * 1000ms
-    private long _report_check_interval;
+    @Value("${agent.check_interval:10000}") // default: 10 * 1000ms
+    private long _check_interval;
 
     private ScheduledExecutorService scheduler;
 
