@@ -117,6 +117,31 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
         return null;
     }
 
+    @Override
+    public boolean isCosyVoiceOnline() {
+        try(final CloseableHttpClient httpClient = HttpClients.createDefault()) {
+            final HttpPost httpPost = new HttpPost(_cosy2_url);
+
+            // 构建 MultipartEntity
+            final HttpEntity entity = MultipartEntityBuilder.create()
+                    .setCharset(StandardCharsets.UTF_8) // 设置全局字符编码为 UTF-8
+                    .build();
+
+            // 设置请求体
+            httpPost.setEntity(entity);
+
+            // 发送请求并获取响应
+            HttpResponse response = httpClient.execute(httpPost);
+
+            // 检查响应状态码
+            if (response.getStatusLine().getStatusCode() > 0) {
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
     private byte[] loadFromOss(final String objectWithBucket) {
         final CountDownLatch cdl = new CountDownLatch(1);
         final AtomicReference<byte[]> bytesRef = new AtomicReference<>(null);
