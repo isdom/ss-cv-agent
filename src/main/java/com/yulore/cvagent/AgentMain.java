@@ -29,10 +29,13 @@ public class AgentMain {
 
         scheduler = Executors.newScheduledThreadPool(1, new DefaultThreadFactory("reportExecutor"));
 
+        final long beginTimestamp = System.currentTimeMillis();
         while (!localCosyVoiceService.isCosyVoiceOnline()) {
             log.warn("local CosyVoice !NOT! Online, wait for re-try");
             Thread.sleep(1000 * 10);
         }
+        log.info("agent({}): wait for CosyVoice Service Online cost: {} s",
+                agentId, (System.currentTimeMillis() - beginTimestamp) / 1000.0f);
 
         final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
         rs.register(CosyVoiceService.class, localCosyVoiceService);
