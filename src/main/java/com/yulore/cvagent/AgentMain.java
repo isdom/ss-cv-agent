@@ -24,10 +24,15 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class AgentMain {
     @PostConstruct
-    public void start() {
+    public void start() throws InterruptedException {
         log.info("CosyVoice-Agent: started with redisson: {}", redisson.getConfig().useSingleServer().getDatabase());
 
         scheduler = Executors.newScheduledThreadPool(1, new DefaultThreadFactory("reportExecutor"));
+
+        while (!localCosyVoiceService.isCosyVoiceOnline()) {
+            log.warn("local CosyVoice !NOT! Online, wait for re-try");
+            Thread.sleep(1000 * 10);
+        }
 
         final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
         rs.register(CosyVoiceService.class, localCosyVoiceService);
