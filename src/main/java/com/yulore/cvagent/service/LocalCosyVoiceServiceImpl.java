@@ -39,9 +39,6 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
         this._ossClient = ossClient;
     }
 
-    private Runnable _onStart = null;
-    private Runnable _onEnd = null;
-
     @Override
     public void setInferenceZeroShotHook(final Runnable onStart, final Runnable onEnd) {
         _onStart = onStart;
@@ -169,4 +166,7 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
     private String _cosy2_url;
 
     private final OSS _ossClient;
+
+    private Runnable _onStart = null;
+    private Runnable _onEnd = null;
 }
