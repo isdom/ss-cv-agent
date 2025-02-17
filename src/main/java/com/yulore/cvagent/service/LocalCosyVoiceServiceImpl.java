@@ -2,7 +2,6 @@ package com.yulore.cvagent.service;
 
 import com.aliyun.oss.OSS;
 import com.google.common.primitives.Bytes;
-import com.yulore.api.CosyVoiceService;
 import com.yulore.bst.BuildStreamTask;
 import com.yulore.bst.OSSStreamTask;
 import com.yulore.util.ByteArrayListInputStream;
