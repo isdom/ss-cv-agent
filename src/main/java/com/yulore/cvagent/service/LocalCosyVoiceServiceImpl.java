@@ -4,6 +4,7 @@ import com.aliyun.oss.OSS;
 import com.google.common.primitives.Bytes;
 import com.yulore.bst.BuildStreamTask;
 import com.yulore.bst.OSSStreamTask;
+import com.yulore.bst.StreamCacheService;
 import com.yulore.util.ByteArrayListInputStream;
 import com.yulore.util.ExceptionUtil;
 import com.yulore.util.WaveUtil;
@@ -142,7 +143,7 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
         final CountDownLatch cdl = new CountDownLatch(1);
         final AtomicReference<byte[]> bytesRef = new AtomicReference<>(null);
 
-        final BuildStreamTask bst = new OSSStreamTask(objectWithBucket, _ossClient, false);
+        final BuildStreamTask bst = getStreamTask(objectWithBucket);
         final List<byte[]> byteList = new ArrayList<>();
         bst.buildStream(byteList::add, (ignored) -> {
             try (final InputStream is = new ByteArrayListInputStream(byteList);
@@ -161,10 +162,22 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
         return bytesRef.get();
     }
 
+    private BuildStreamTask getStreamTask(final String objectWithBucket) {
+        final BuildStreamTask bst =  new OSSStreamTask(objectWithBucket, _ossClient, false);
+        if (bst.key() != null) {
+            return _scsService.asCache(bst);
+        } else {
+            return bst;
+        }
+    }
+
     @Value("${cosy2.url}")
     private String _cosy2_url;
 
     private final OSS _ossClient;
+
+    @Autowired
+    private StreamCacheService _scsService;
 
     private Runnable _onStart = null;
     private Runnable _onEnd = null;
