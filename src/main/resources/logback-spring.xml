@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
     <contextName>cv-agent</contextName>
+    <!-- 从 Spring Environment 中读取 Nacos 配置的属性 -->
+    <springProperty name="CPB_GROUP" source="sls.group" defaultValue="DEFAULT_GROUP"/>
+    <springProperty name="CPB_DATAID" source="sls.dataid"/>
+    <springProperty name="SLS_ENDPOINT" source="sls.endpoint"/>
+    <springProperty name="SLS_PROJECT" source="sls.project"/>
+    <springProperty name="SLS_LOGSTORE" source="sls.logstore"/>
+    <springProperty name="SLS_TOPIC" source="sls.topic"/>
+
     <!-- variable name="HOSTNAME" value="${HOSTNAME}" /-->
     <variable file="logback_vars.properties" />
     <property name="pattern" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg %n"/>
@@ -32,7 +40,7 @@
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
                 <maxFileSize>${log.file.size.max:-100}MB</maxFileSize>
             </timeBasedFileNamingAndTriggeringPolicy>
-            <maxHistory>30</maxHistory>
+            <maxHistory>${log.file.history.max:-7}</maxHistory>
         </rollingPolicy>
 
         <encoder>
@@ -52,6 +60,8 @@
         <!--必选项-->
         <!-- 账号及网络配置 -->
         <endpoint>${SLS_ENDPOINT}</endpoint>
+        <!-- accessKeyId>your accesskey id</accessKeyId -->
+        <!-- accessKeySecret>your accesskey</accessKeySecret -->
 
         <!-- sls 项目配置 -->
         <project>${SLS_PROJECT}</project>
@@ -97,10 +107,10 @@
         <maxThrowable>500</maxThrowable>
     </appender>
 
-    <logger name="io.netty" level="INFO"/>
-    <logger name="org.redisson" level="INFO"/>
-    <logger name="com.aliyun.openservices" level="WARN"/>
+    <logger name="link.thingscloud.freeswitch.esl.spring.boot.starter.handler.DefaultEslEventHandler" level="ERROR"/>
+    <logger name="link.thingscloud.freeswitch" level="INFO"/>
     <logger name="org.apache.http" level="WARN"/>
+    <logger name="com.aliyun.openservices" level="WARN"/>
 
     <logger name="com.yulore.test" level="info" additivity="false">
         <appender-ref ref="CONSOLE-TEST"/>
@@ -120,8 +130,8 @@
         </root>
         <logger name="io.netty" level="INFO"/>
         <logger name="org.redisson" level="INFO"/>
-        <logger name="org.springframework" level="INFO"/>
         <logger name="com.yulore.metric" level="${metric.level:-INFO}"/>
+        <logger name="org.springframework" level="${spring.level:-INFO}"/>
     </springProfile>
 
 </configuration>

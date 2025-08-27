@@ -45,6 +45,9 @@ dependencies {
     // for fastapi client
     implementation 'org.apache.httpcomponents:httpmime:4.5.14'
 
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-lang3
+    implementation 'org.apache.commons:commons-lang3:3.18.0'
+
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
