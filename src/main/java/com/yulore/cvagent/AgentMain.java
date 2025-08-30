@@ -17,19 +17,23 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 @Slf4j
 @Component
 public class AgentMain {
     @PostConstruct
-    public void start() throws InterruptedException {
-        log.info("CosyVoice-Agent: started with redisson: {}", redisson.getConfig().useSingleServer().getDatabase());
+    public void start() {
+        log.info("CosyVoice-Agent: started with redisson: {}, cosy2 works: {}",
+                redisson.getConfig().useSingleServer().getDatabase(), _cosyvoice_works);
 
         scheduler = Executors.newScheduledThreadPool(1, new DefaultThreadFactory("reportExecutor"));
+        cosyExecutor = Executors.newFixedThreadPool(_cosyvoice_works, new DefaultThreadFactory("cosyExecutor"));
 
         checkAndScheduleNext((tm) -> {
             if (!localCosyVoiceService.isCosyVoiceOnline()) {
@@ -50,16 +54,17 @@ public class AgentMain {
     private void registerCosyVoiceServiceAndStartUpdateAgentStatus() {
         // CosyVoice is online, stop check and begin to register RemoteService
         final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
-        rs.register(CosyVoiceService.class, localCosyVoiceService);
+        rs.register(CosyVoiceService.class, localCosyVoiceService, _cosyvoice_works, cosyExecutor);
 
         final CVMasterService masterService = redisson.getRemoteService(_service_master)
                 .get(CVMasterService.class, RemoteInvocationOptions.defaults().noAck().noResult());
 
+        final var currentWorks = new AtomicInteger(0);
         localCosyVoiceService.setInferenceZeroShotHook(
                 // start to work
-                () -> masterService.updateCVAgentStatus(agentId, 0),
+                () -> masterService.updateCVAgentStatus(agentId, _cosyvoice_works - currentWorks.incrementAndGet()),
                 // worker back to idle
-                () -> masterService.updateCVAgentStatus(agentId, 1));
+                () -> masterService.updateCVAgentStatus(agentId, _cosyvoice_works - currentWorks.decrementAndGet()));
 
         checkAndScheduleNext((startedTimestamp)-> {
             masterService.updateCVAgentStatus(agentId, rs.getFreeWorkers(CosyVoiceService.class));
@@ -84,6 +89,7 @@ public class AgentMain {
         scheduler.shutdownNow();
         final RRemoteService remoteService = redisson.getRemoteService(_service_cosyvoice);
         remoteService.deregister(CosyVoiceService.class);
+        cosyExecutor.shutdown();
 
         log.info("CosyVoice-Agent: shutdown");
     }
@@ -104,6 +110,10 @@ public class AgentMain {
     private long _check_interval;
 
     private ScheduledExecutorService scheduler;
+
+    @Value("${cosy2.works:1}")
+    private int _cosyvoice_works;
+    private ExecutorService cosyExecutor;
 
     private final String agentId = UUID.randomUUID().toString();
 }
