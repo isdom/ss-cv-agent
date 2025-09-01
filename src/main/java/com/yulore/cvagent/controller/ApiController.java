@@ -12,7 +12,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-//@Controller
+@Controller
 @Slf4j
 @RequestMapping("/cv")
 public class ApiController {

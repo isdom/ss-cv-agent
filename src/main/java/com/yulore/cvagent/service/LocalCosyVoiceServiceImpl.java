@@ -8,6 +8,7 @@ import com.yulore.bst.StreamCacheService;
 import com.yulore.util.ByteArrayListInputStream;
 import com.yulore.util.ExceptionUtil;
 import com.yulore.util.WaveUtil;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -19,12 +20,11 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,9 +34,51 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 @Service
 public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
+    @lombok.Value
+    static class ByteArrayMultipartFile implements MultipartFile {
+
+        String name;
+
+        String originalFilename;
+
+        String contentType;
+
+        @NonNull
+        byte[] bytes;
+
+        @Override
+        public boolean isEmpty () {
+            return bytes.length == 0;
+        }
+
+        @Override
+        public long getSize () {
+            return bytes.length;
+        }
+
+        @Override
+        public InputStream getInputStream () {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public void transferTo (File destination) throws IOException {
+            OutputStream outputStream = null;
+            try {
+                outputStream = new FileOutputStream(destination);
+                outputStream.write(bytes);
+            } finally {
+                if (outputStream != null) {
+                    outputStream.close();
+                }
+            }
+        }
+    }
+
     @Autowired
-    public LocalCosyVoiceServiceImpl(final OSS ossClient) {
+    public LocalCosyVoiceServiceImpl(final OSS ossClient, final Cosy2Client cosy2) {
         this._ossClient = ossClient;
+        this._cosy2 = cosy2;
     }
 
     @Override
@@ -77,6 +119,7 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
     @Override
     public byte[] inferenceZeroShot(final String ttsText, final String promptText, final String promptWav) {
         final byte[] promptWavBytes = loadFromOss(promptWav);
+        /*
         try(final CloseableHttpClient httpClient = HttpClients.createDefault()) {
             final HttpPost httpPost = new HttpPost(_cosy2_url);
 
@@ -110,6 +153,29 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
             }
         } catch (IOException ex) {
             log.warn("callCosy2ZeroShot: failed, detail: {}", ExceptionUtil.exception2detail(ex));
+        }
+        return null;
+        */
+        try {
+            final MultipartFile multipartFile = new ByteArrayMultipartFile(
+                    "prompt_wav",
+                    "prompt_wav",
+                    "application/octet-stream",
+                    promptWavBytes
+            );
+            // 使用Feign客户端调用远程服务
+            final ResponseEntity<byte[]> response = _cosy2.inferenceZeroShot(ttsText, promptText, multipartFile);
+            if (response.getStatusCode().is2xxSuccessful() && response.hasBody()) {
+                final byte[] pcm = response.getBody();
+                log.info("callCosy2ZeroShot: Response/audioData.size: {}", pcm.length);
+                return Bytes.concat(
+                        WaveUtil.genWaveHeader(16000, 1),
+                        WaveUtil.resamplePCM(pcm, 24000, 16000));
+            } else {
+                log.warn("Failed to get response. Status code: {}", response.getStatusCodeValue());
+            }
+        } catch (Exception ex) {
+            log.warn("callCosy2ZeroShot => text:{} failed, detail: {}", ttsText, ExceptionUtil.exception2detail(ex));
         }
         return null;
     }
@@ -175,6 +241,8 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
     private String _cosy2_url;
 
     private final OSS _ossClient;
+
+    private final Cosy2Client _cosy2;
 
     @Autowired
     private StreamCacheService _scsService;
