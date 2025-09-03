@@ -22,6 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 @Slf4j
@@ -34,6 +36,7 @@ public class AgentMain {
 
         scheduler = Executors.newScheduledThreadPool(1, new DefaultThreadFactory("reportExecutor"));
         cosyExecutor = Executors.newFixedThreadPool(_cosyvoice_works, new DefaultThreadFactory("cosyExecutor"));
+        remoteService = redisson.getRemoteService(_service_cosyvoice);
 
         checkAndScheduleNext((tm) -> {
             if (!localCosyVoiceService.isCosyVoiceOnline()) {
@@ -60,13 +63,38 @@ public class AgentMain {
         final var currentWorks = new AtomicInteger(0);
         localCosyVoiceService.setInferenceZeroShotHook(
                 // start to work
-                () -> masterService.updateCVAgentStatus(agentId, _cosyvoice_works - currentWorks.incrementAndGet()),
+                () -> {
+                    int freeWorks;
+                    rsLock.lock();
+                    try {
+                        freeWorks = _cosyvoice_works - currentWorks.incrementAndGet();
+                        if (freeWorks <= 0) {
+                            log.info("freeWorks: {}, disableCosy2Facade", freeWorks);
+                            disableCosy2Facade();
+                        }
+                    } finally {
+                        rsLock.unlock();
+                    }
+                    masterService.updateCVAgentStatus(agentId, freeWorks);
+                },
                 // worker back to idle
-                () -> masterService.updateCVAgentStatus(agentId, _cosyvoice_works - currentWorks.decrementAndGet()));
+                () -> {
+                    int freeWorks;
+                    rsLock.lock();
+                    try {
+                        freeWorks = _cosyvoice_works - currentWorks.decrementAndGet();
+                        if (freeWorks == _cosyvoice_works) {
+                            log.info("freeWorks: {}, enableCosy2Facade", freeWorks);
+                            enableCosy2Facade();
+                        }
+                    } finally {
+                        rsLock.unlock();
+                    }
+                    masterService.updateCVAgentStatus(agentId, freeWorks);
+                });
 
         // CosyVoice is online, stop check and begin to register RemoteService
-        final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
-        rs.register(CosyVoiceService.class, localCosyVoiceService, _cosyvoice_works, cosyExecutor);
+        enableCosy2Facade();
 
         localCosyVoiceService.beginFeedback();
 
@@ -74,6 +102,14 @@ public class AgentMain {
             masterService.updateCVAgentStatus(agentId, /*rs.getFreeWorkers(CosyVoiceService.class)*/ _cosyvoice_works - currentWorks.get());
             return true;
         }, System.currentTimeMillis());
+    }
+
+    void enableCosy2Facade() {
+        remoteService.register(CosyVoiceService.class, localCosyVoiceService, _cosyvoice_works, cosyExecutor);
+    }
+
+    void disableCosy2Facade() {
+        remoteService.deregister(CosyVoiceService.class);
     }
 
     private void checkAndScheduleNext(final Function<Long, Boolean> doCheck, final Long timestamp) {
@@ -91,8 +127,7 @@ public class AgentMain {
     @PreDestroy
     public void stop() {
         scheduler.shutdownNow();
-        final RRemoteService remoteService = redisson.getRemoteService(_service_cosyvoice);
-        remoteService.deregister(CosyVoiceService.class);
+        disableCosy2Facade();
         cosyExecutor.shutdown();
 
         log.info("CosyVoice-Agent: shutdown");
@@ -106,6 +141,10 @@ public class AgentMain {
 
     @Autowired
     private RedissonClient redisson;
+
+    private RRemoteService remoteService;
+
+    private final Lock rsLock = new ReentrantLock();
 
     @Autowired
     private LocalCosyVoiceService localCosyVoiceService;
