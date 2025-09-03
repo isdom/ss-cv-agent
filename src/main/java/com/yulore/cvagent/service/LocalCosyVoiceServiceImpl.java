@@ -2,34 +2,39 @@ package com.yulore.cvagent.service;
 
 import com.aliyun.oss.OSS;
 import com.google.common.primitives.Bytes;
+import com.yulore.api.CVMasterService;
+import com.yulore.api.ZeroShotTask;
 import com.yulore.bst.BuildStreamTask;
 import com.yulore.bst.OSSStreamTask;
 import com.yulore.bst.StreamCacheService;
 import com.yulore.util.ByteArrayListInputStream;
 import com.yulore.util.ExceptionUtil;
+import com.yulore.util.ExecutorStore;
 import com.yulore.util.WaveUtil;
+import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -81,6 +86,36 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
         this._cosy2 = cosy2;
     }
 
+    @PostConstruct
+    void start() {
+        scheduler = Executors.newScheduledThreadPool(1, new DefaultThreadFactory("feedback"));
+    }
+
+    @PreDestroy
+    void stop() {
+        scheduler.shutdownNow();
+    }
+
+    @Override
+    public void beginFeedback() {
+        scheduler.scheduleWithFixedDelay(()->{
+            final var all_task_id = id2task.keySet();
+            for (String task_id : all_task_id) {
+                _masterService.feedbackZeroShotStatus(_agentId, task_id, 1);
+            }
+        }, 0, 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public void setAgentId(final String agentId) {
+        _agentId = agentId;
+    }
+
+    @Override
+    public void setMaster(final CVMasterService masterService) {
+        _masterService = masterService;
+    }
+
     @Override
     public void setInferenceZeroShotHook(final Runnable onStart, final Runnable onEnd) {
         _onStart = onStart;
@@ -114,6 +149,38 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
                 _onEnd.run();
             }
         }
+    }
+
+    @Override
+    public String commitZeroShotTask(final ZeroShotTask task) {
+        if (null != _onStart) {
+            _onStart.run();
+        }
+
+        id2task.put(task.task_id, task);
+        final Supplier<byte[]> genWav = ()->inferenceZeroShot(task.tts_text, task.prompt_text, task.prompt_wav);
+        interactAsync(genWav).whenComplete((wavBytes, ex) -> {
+            id2task.remove(task.task_id);
+            if (wavBytes == null) {
+                log.info("commitZeroShotTask: inferenceZeroShot failed");
+                // zeroShot failed
+                scheduler.submit(()-> _masterService.feedbackZeroShotStatus(_agentId, task.task_id, -1));
+            } else {
+                log.info("commitZeroShotTask: inferenceZeroShot with output size: {}", wavBytes.length);
+                _ossClient.putObject(task.bucket, task.save_to, new ByteArrayInputStream(wavBytes));
+                log.info("commitZeroShotTask: saveTo {bucket={}}{}", task.bucket, task.save_to);
+                // zeroShot success
+                scheduler.submit(()->_masterService.feedbackZeroShotStatus(_agentId, task.task_id, 0));
+            }
+            if (null != _onEnd) {
+                _onEnd.run();
+            }
+        });
+        return _agentId;
+    }
+
+    private  <T> CompletionStage<T> interactAsync(final Supplier<T> getResponse) {
+        return CompletableFuture.supplyAsync(getResponse, executorStore.apply("feign"));
     }
 
     @Override
@@ -246,6 +313,16 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
 
     @Autowired
     private StreamCacheService _scsService;
+
+    @Autowired
+    private ExecutorStore executorStore;
+
+    private ScheduledExecutorService scheduler;
+
+    private final ConcurrentMap<String, ZeroShotTask> id2task = new ConcurrentHashMap<>();
+
+    private String _agentId;
+    private CVMasterService _masterService;
 
     private Runnable _onStart = null;
     private Runnable _onEnd = null;

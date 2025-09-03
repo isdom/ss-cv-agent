@@ -6,4 +6,10 @@ public interface CosyVoiceService {
                                     final String promptWav,
                                     final String bucket,
                                     final String saveTo);
+
+    /**
+     * @param task : ZeroShotTask
+     * @return agentId
+     */
+    String commitZeroShotTask(final ZeroShotTask task);
 }

@@ -53,8 +53,8 @@ public class MetricsRepo {
 
     @Bean
     @Scope(SCOPE_PROTOTYPE)
-    public Gauge buildGauge(final Supplier<Number> f, final String name, final MetricCustomized customized) {
-        log.info("Gauge: create {} with tags:{}", name, customized != null ? customized.tags : "");
+    public DisposableGauge buildDisposableGauge(final Supplier<Number> f, final String name, final MetricCustomized customized) {
+        log.info("DisposableGauge: create {} with tags:{}", name, customized != null ? customized.tags : "");
         final var builder = Gauge.builder(name, f)
                 .tags("hostname", HOSTNAME)
                 .tags("ip", LOCAL_IP)
@@ -66,9 +66,23 @@ public class MetricsRepo {
             if (!customized.tags.isEmpty()) {
                 builder.tags(customized.tags.toArray(EMPTY_STRING_ARRAY));
             }
+            if (!customized.baseUnit.isEmpty()) {
+                builder.baseUnit(customized.baseUnit);
+            }
         }
 
-        return builder.register(meterRegistry);
+        final var gauge = builder.register(meterRegistry);
+        return new DisposableGauge() {
+            @Override
+            public Gauge gauge() {
+                return gauge;
+            }
+
+            @Override
+            public void dispose() {
+                meterRegistry.remove(gauge);
+            }
+        };
     }
 
     @Bean

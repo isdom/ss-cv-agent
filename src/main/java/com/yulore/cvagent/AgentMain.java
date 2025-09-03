@@ -52,13 +52,11 @@ public class AgentMain {
     }
 
     private void registerCosyVoiceServiceAndStartUpdateAgentStatus() {
-        // CosyVoice is online, stop check and begin to register RemoteService
-        final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
-        rs.register(CosyVoiceService.class, localCosyVoiceService, _cosyvoice_works, cosyExecutor);
-
         final CVMasterService masterService = redisson.getRemoteService(_service_master)
                 .get(CVMasterService.class, RemoteInvocationOptions.defaults().noAck().noResult());
 
+        localCosyVoiceService.setAgentId(agentId);
+        localCosyVoiceService.setMaster(masterService);
         final var currentWorks = new AtomicInteger(0);
         localCosyVoiceService.setInferenceZeroShotHook(
                 // start to work
@@ -66,8 +64,14 @@ public class AgentMain {
                 // worker back to idle
                 () -> masterService.updateCVAgentStatus(agentId, _cosyvoice_works - currentWorks.decrementAndGet()));
 
+        // CosyVoice is online, stop check and begin to register RemoteService
+        final RRemoteService rs = redisson.getRemoteService(_service_cosyvoice);
+        rs.register(CosyVoiceService.class, localCosyVoiceService, _cosyvoice_works, cosyExecutor);
+
+        localCosyVoiceService.beginFeedback();
+
         checkAndScheduleNext((startedTimestamp)-> {
-            masterService.updateCVAgentStatus(agentId, rs.getFreeWorkers(CosyVoiceService.class));
+            masterService.updateCVAgentStatus(agentId, /*rs.getFreeWorkers(CosyVoiceService.class)*/ _cosyvoice_works - currentWorks.get());
             return true;
         }, System.currentTimeMillis());
     }

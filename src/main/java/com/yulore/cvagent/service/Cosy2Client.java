@@ -1,5 +1,6 @@
 package com.yulore.cvagent.service;
 
+import feign.Request;
 import feign.codec.Encoder;
 import feign.form.spring.SpringFormEncoder;
 import org.springframework.beans.factory.ObjectFactory;
@@ -15,11 +16,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.concurrent.TimeUnit;
+
 // REF: https://github.com/OpenFeign/feign-form
 @FeignClient(
         name = "cosy2Client",
         url = "${cosy2.url}",
-        configuration = Cosy2Client.MultipartSupportConfig.class
+        configuration = Cosy2Client.Cosy2Config.class
 )
 public interface Cosy2Client {
 
@@ -30,7 +33,7 @@ public interface Cosy2Client {
             @RequestPart("prompt_wav") MultipartFile promptWav
     );
 
-    class MultipartSupportConfig {
+    class Cosy2Config {
 
         @Autowired
         private ObjectFactory<HttpMessageConverters> messageConverters;
@@ -38,6 +41,12 @@ public interface Cosy2Client {
         @Bean
         public Encoder feignFormEncoder () {
             return new SpringFormEncoder(new SpringEncoder(messageConverters));
+        }
+
+        @Bean
+        public Request.Options cosy2Options() {
+            // connect(200ms), read(60minutes), followRedirects(true)
+            return new Request.Options(200, TimeUnit.MILLISECONDS,  60, TimeUnit.MINUTES,true);
         }
     }
 }
