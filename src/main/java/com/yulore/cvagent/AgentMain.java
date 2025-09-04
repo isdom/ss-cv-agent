@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -60,7 +61,6 @@ public class AgentMain {
 
         localCosyVoiceService.setAgentId(agentId);
         localCosyVoiceService.setMaster(masterService);
-        final var currentWorks = new AtomicInteger(0);
         localCosyVoiceService.setInferenceZeroShotHook(
                 // start to work
                 () -> {
@@ -69,13 +69,12 @@ public class AgentMain {
                     try {
                         freeWorks = _cosyvoice_works - currentWorks.incrementAndGet();
                         if (freeWorks <= 0) {
-                            log.info("freeWorks: {}, disableCosy2Facade", freeWorks);
-                            disableCosy2Facade();
+                            deregisterCosy2();
                         }
                     } finally {
                         rsLock.unlock();
                     }
-                    masterService.updateCVAgentStatus(agentId, freeWorks);
+                    masterService.updateCVAgentStatus(agentId, _cosyvoice_works, freeWorks);
                 },
                 // worker back to idle
                 () -> {
@@ -83,33 +82,38 @@ public class AgentMain {
                     rsLock.lock();
                     try {
                         freeWorks = _cosyvoice_works - currentWorks.decrementAndGet();
-                        if (freeWorks == _cosyvoice_works) {
-                            log.info("freeWorks: {}, enableCosy2Facade", freeWorks);
-                            enableCosy2Facade();
+                        if (freeWorks > 0) {
+                            registerCosy2();
                         }
                     } finally {
                         rsLock.unlock();
                     }
-                    masterService.updateCVAgentStatus(agentId, freeWorks);
+                    masterService.updateCVAgentStatus(agentId, _cosyvoice_works, freeWorks);
                 });
 
         // CosyVoice is online, stop check and begin to register RemoteService
-        enableCosy2Facade();
+        registerCosy2();
 
         localCosyVoiceService.beginFeedback();
 
         checkAndScheduleNext((startedTimestamp)-> {
-            masterService.updateCVAgentStatus(agentId, /*rs.getFreeWorkers(CosyVoiceService.class)*/ _cosyvoice_works - currentWorks.get());
+            masterService.updateCVAgentStatus(agentId, _cosyvoice_works,_cosyvoice_works - currentWorks.get());
             return true;
         }, System.currentTimeMillis());
     }
 
-    void enableCosy2Facade() {
-        remoteService.register(CosyVoiceService.class, localCosyVoiceService, _cosyvoice_works, cosyExecutor);
+    void registerCosy2() {
+        if (isCosy2Registered.compareAndSet(false, true)) {
+            remoteService.register(CosyVoiceService.class, localCosyVoiceService, _cosyvoice_works, cosyExecutor);
+            log.info("registerCosy2 when freeWorks: {}, ", _cosyvoice_works - currentWorks.get());
+        }
     }
 
-    void disableCosy2Facade() {
-        remoteService.deregister(CosyVoiceService.class);
+    void deregisterCosy2() {
+        if (isCosy2Registered.compareAndSet(true, false)) {
+            remoteService.deregister(CosyVoiceService.class);
+            log.info("deregisterCosy2 when freeWorks: {}, ", _cosyvoice_works - currentWorks.get());
+        }
     }
 
     private void checkAndScheduleNext(final Function<Long, Boolean> doCheck, final Long timestamp) {
@@ -127,7 +131,7 @@ public class AgentMain {
     @PreDestroy
     public void stop() {
         scheduler.shutdownNow();
-        disableCosy2Facade();
+        deregisterCosy2();
         cosyExecutor.shutdown();
 
         log.info("CosyVoice-Agent: shutdown");
@@ -143,6 +147,10 @@ public class AgentMain {
     private RedissonClient redisson;
 
     private RRemoteService remoteService;
+
+    private final AtomicBoolean isCosy2Registered = new AtomicBoolean(false);
+
+    private final AtomicInteger currentWorks = new AtomicInteger(0);
 
     private final Lock rsLock = new ReentrantLock();
 

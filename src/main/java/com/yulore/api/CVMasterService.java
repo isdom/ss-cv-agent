@@ -1,7 +1,7 @@
 package com.yulore.api;
 
 public interface CVMasterService {
-    void updateCVAgentStatus(final String agentId, final int freeWorks);
+    void updateCVAgentStatus(final String agentId, final int totalWorks, final int freeWorks);
     // status =>
     //  1: progress
     //  -1: failed
