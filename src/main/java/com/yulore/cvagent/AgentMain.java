@@ -63,7 +63,7 @@ public class AgentMain {
         localCosyVoiceService.setMaster(masterService);
         localCosyVoiceService.setInferenceZeroShotHook(
                 // start to work
-                () -> {
+                () -> masterService.updateCVAgentStatus(agentId, _cosyvoice_works, _cosyvoice_works - currentWorks.incrementAndGet()) /*{
                     int freeWorks;
                     rsLock.lock();
                     try {
@@ -75,9 +75,9 @@ public class AgentMain {
                         rsLock.unlock();
                     }
                     masterService.updateCVAgentStatus(agentId, _cosyvoice_works, freeWorks);
-                },
+                }*/,
                 // worker back to idle
-                () -> {
+                () -> masterService.updateCVAgentStatus(agentId, _cosyvoice_works, _cosyvoice_works - currentWorks.decrementAndGet()) /*{
                     int freeWorks;
                     rsLock.lock();
                     try {
@@ -89,7 +89,7 @@ public class AgentMain {
                         rsLock.unlock();
                     }
                     masterService.updateCVAgentStatus(agentId, _cosyvoice_works, freeWorks);
-                });
+                }*/);
 
         // CosyVoice is online, stop check and begin to register RemoteService
         registerCosy2();

@@ -11,5 +11,5 @@ public interface CosyVoiceService {
      * @param task : ZeroShotTask
      * @return agentId
      */
-    String commitZeroShotTask(final ZeroShotTask task);
+    void commitZeroShotTask(final ZeroShotTask task);
 }

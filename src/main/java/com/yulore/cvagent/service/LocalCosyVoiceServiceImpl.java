@@ -152,12 +152,13 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
     }
 
     @Override
-    public String commitZeroShotTask(final ZeroShotTask task) {
+    public void commitZeroShotTask(final ZeroShotTask task) {
         if (null != _onStart) {
             _onStart.run();
         }
 
         id2task.put(task.task_id, task);
+        /*
         final Supplier<byte[]> genWav = ()->inferenceZeroShot(task.tts_text, task.prompt_text, task.prompt_wav);
         interactAsync(genWav).whenComplete((wavBytes, ex) -> {
             id2task.remove(task.task_id);
@@ -177,6 +178,25 @@ public class LocalCosyVoiceServiceImpl implements LocalCosyVoiceService {
             }
         });
         return _agentId;
+        */
+        try {
+            log.info("commitZeroShotTask: {}", task);
+            final byte[] wavBytes = inferenceZeroShot(task.tts_text, task.prompt_text, task.prompt_wav);;
+            if (wavBytes == null) {
+                log.info("commitZeroShotTask: inferenceZeroShot failed");
+                _masterService.feedbackZeroShotStatus(_agentId, task.task_id, -1);
+            } else {
+                log.info("commitZeroShotTask: inferenceZeroShot with output size: {}", wavBytes.length);
+                _ossClient.putObject(task.bucket, task.save_to, new ByteArrayInputStream(wavBytes));
+                log.info("commitZeroShotTask: saveTo {bucket={}}{}", task.bucket, task.save_to);
+                _masterService.feedbackZeroShotStatus(_agentId, task.task_id, 0);
+            }
+        } finally {
+            id2task.remove(task.task_id);
+            if (null != _onEnd) {
+                _onEnd.run();
+            }
+        }
     }
 
     private  <T> CompletionStage<T> interactAsync(final Supplier<T> getResponse) {
